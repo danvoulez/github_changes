@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]  # Inclui websockets e http tools
+loguru
+pydantic
+python-dotenv
+google-generativeai
+httpx
+GitPython
+# Adicione outras dependências do seu projeto AgentOS (ex: motor, redis, etc.)
+# motor >= 3.0
+# redis

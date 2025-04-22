@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PromptOS – Gerador de Patches</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { /* Estilos mantidos da versão anterior */ }
+    .card { /* Estilos mantidos */ }
+    h1 { /* Estilos mantidos */ }
+    label { /* Estilos mantidos */ }
+    input, textarea, select { /* Estilos mantidos */ }
+    textarea { resize: vertical; min-height: 100px; }
+    .optional { /* Estilos mantidos */ }
+    button { /* Estilos mantidos */ }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button:hover:not(:disabled) { background: #3a558f; }
+    pre { /* Estilos mantidos */ }
+    .output-container { position: relative; }
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem; right: 0.5rem;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.8rem;
+      background: #ddd; color: #333;
+      border: none; border-radius: 4px;
+      cursor: pointer; display: none; /* Inicialmente oculto */
+    }
+    .copy-btn:hover { background: #ccc; }
+    .section { margin-bottom: 1.5rem; }
+    .status { margin-top: 1rem; font-style: italic; color: #555; text-align: center;}
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>🖋️ PromptOS Generator</h1>
+
+    <form id="patchForm">
+      <!-- 1. Repositório -->
+      <div class="section">
+        <label for="repo">1. Qual o repositório?</label>
+        <input id="repo" type="text" placeholder="ex: seu-usuario/seu-repositorio" required />
+        <div class="optional">Formato owner/repo no GitHub</div>
+      </div>
+
+      <!-- 2. Instruções -->
+      <div class="section">
+        <label for="instructions">2. O que quer que a Gemini faça?</label>
+        <textarea id="instructions" placeholder="Ex: Refatore a função X no arquivo Y para ser assíncrona. Adicione logs detalhados." required></textarea>
+        <div class="optional">Descreva bem a mudança. A Gemini tentará inferir os arquivos.</div>
+      </div>
+
+      <!-- 3. Modelo Gemini -->
+      <div class="section">
+        <label for="model">3. Escolha o modelo Gemini</label>
+        <select id="model">
+          <option value="gemini-pro">✨ gemini-pro (Recomendado)</option>
+          <option value="gemini-1.5-flash">⚡ gemini-1.5-flash (Rápido)</option>
+          <option value="gemini-1.5-pro">🧠 gemini-1.5-pro (Mais Capaz)</option>
+          <!-- <option value="gemini-pro-vision">🎨 gemini-pro-vision</option> -->
+        </select>
+      </div>
+
+      <!-- Botão de ação -->
+      <button id="makePatchBtn" type="submit">Gerar Patch</button>
+    </form>
+
+    <!-- Resultado e Status -->
+    <div class="status" id="statusMessage"></div>
+    <div class="output-container">
+        <pre id="output">(Aguardando instruções...)</pre>
+        <button class="copy-btn" id="copyBtn">Copiar</button>
+    </div>
+  </div>
+
+  <script>
+    const patchForm = document.getElementById('patchForm');
+    const repoEl = document.getElementById('repo');
+    const instructionsEl = document.getElementById('instructions');
+    const modelEl = document.getElementById('model');
+    const makePatchBtn = document.getElementById('makePatchBtn');
+    const outputEl = document.getElementById('output');
+    const statusMessageEl = document.getElementById('statusMessage');
+    const copyBtn = document.getElementById('copyBtn');
+
+    patchForm.onsubmit = async (event) => {
+      event.preventDefault(); // Impede envio padrão do formulário
+
+      const repo = repoEl.value.trim();
+      const instructions = instructionsEl.value.trim();
+      const model = modelEl.value;
+
+      if (!repo || !instructions) {
+        alert('Por favor, preencha o repositório e as instruções.');
+        return;
+      }
+
+      outputEl.textContent = ''; // Limpa output anterior
+      statusMessageEl.textContent = '🔄 Processando... Clonando repositório e chamando Gemini...';
+      makePatchBtn.disabled = true;
+      copyBtn.style.display = 'none';
+
+      try {
+        // Não enviamos mais token, branch ou file_paths daqui
+        const body = { repo, instructions, model };
+
+        const res = await fetch('/promptos/patch', { // Endpoint do backend
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        const json = await res.json();
+
+        if (!res.ok) {
+            // Tenta pegar a mensagem de erro do backend, senão usa texto padrão
+            const errorDetail = json.detail || `Erro ${res.status}: ${res.statusText}`;
+            throw new Error(errorDetail);
+        }
+
+        if (json.patch) {
+          outputEl.textContent = json.patch;
+          statusMessageEl.textContent = '✅ Patch gerado com sucesso!';
+          copyBtn.style.display = 'block'; // Mostra o botão de copiar
+        } else {
+          outputEl.textContent = JSON.stringify(json, null, 2);
+          statusMessageEl.textContent = '⚠️ Resposta recebida, mas sem patch explícito.';
+        }
+
+      } catch (err) {
+        console.error("Erro ao gerar patch:", err);
+        outputEl.textContent = `Erro: ${err.message}`;
+        statusMessageEl.textContent = '❌ Falha ao gerar o patch.';
+      } finally {
+        makePatchBtn.disabled = false; // Reabilita o botão
+      }
+    };
+
+    copyBtn.onclick = () => {
+        navigator.clipboard.writeText(outputEl.textContent)
+            .then(() => {
+                copyBtn.textContent = 'Copiado!';
+                setTimeout(() => { copyBtn.textContent = 'Copiar'; }, 2000); // Reset após 2s
+            })
+            .catch(err => {
+                console.error('Falha ao copiar:', err);
+                alert('Não foi possível copiar o patch.');
+            });
+    };
+  </script>
+
+</body>
+</html>

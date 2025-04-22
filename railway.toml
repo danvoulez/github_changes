@@ -1,0 +1,28 @@
+# railway.toml - Configuração para deploy no Railway
+
+[build]
+builder = "dockerfile" # Especifica que usaremos um Dockerfile
+# O Railway procura por 'Dockerfile' na raiz por padrão.
+# Se o seu Dockerfile estiver em backend/Dockerfile, descomente a linha abaixo:
+dockerfilePath = "backend/Dockerfile"
+
+[deploy]
+startCommand = "sh -c 'uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1'" # Comando padrão já está no Dockerfile CMD, mas podemos redundar aqui ou customizar.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+# --- Variáveis de Ambiente ---
+# NÃO coloque segredos aqui. Use o painel do Railway ou a CLI:
+# railway variables set GEMINI_API_KEY=seu_valor_aqui GITHUB_PAT=seu_valor_aqui
+# Adicione outras variáveis necessárias aqui, SEM os valores secretos.
+# Exemplo:
+# [variables]
+# LOG_LEVEL = "INFO"
+# OUTRA_VARIAVEL = "valor_publico"
+
+# --- Healthcheck (Opcional, mas recomendado) ---
+# [healthcheck]
+# path = "/" # Rota que o Railway verificará para saber se o serviço está saudável (ex: retorna 200 OK)
+# interval = 30 # segundos
+# timeout = 5   # segundos
+# failures = 3  # tentativas antes de considerar falho
